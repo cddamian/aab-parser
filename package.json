@@ -1,33 +1,8 @@
 {
   "name": "aab-parser",
-  "version": "1.0.1",
-  "description": "Parser for Android app bundles",
   "main": "index.js",
-  "scripts": {
-    "build": "ncc build -m -o build src/index.ts"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/qucumbah/aab-parser.git"
-  },
-  "keywords": [
-    "android",
-    "aab",
-    "parser"
-  ],
-  "author": "qucumbah",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/qucumbah/aab-parser/issues"
-  },
-  "homepage": "https://github.com/qucumbah/aab-parser#readme",
   "dependencies": {
     "@bufbuild/protobuf": "^2.0.0",
     "jszip": "^3.7.1"
-  },
-  "devDependencies": {
-    "@types/node": "^16.6.2",
-    "@vercel/ncc": "^0.38.1",
-    "typescript": "^5.5.4"
   }
 }
