@@ -1,61 +1,46 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import JSZip, * as jszip from 'jszip';
-import * as protobuf from 'protobufjs';
+import { loadAsync } from 'jszip';
+import { readFile } from 'node:fs/promises';
+import { XmlNode } from './proto/Resources';
 
-type Manifest = {
+interface Manifest {
+  compiledSdkVersionCodename: number,
+  compiledSdkVersion: number,
   versionCode: number,
   versionName: string,
   packageName: string,
-  compiledSdkVersion: number,
-  compiledSdkVersionCodename: number,
-};
+}
+
+interface Attribute {
+  value: string,
+  name: string,
+}
 
 export async function parseAabManifest(file: string | Buffer): Promise<Manifest> {
-  const manifestJson = await parseAabManifestJSON(file);
+  if (typeof file === 'string') return parseAabManifest(await readFile(file));
 
-  type Attribute = {
-    name: string,
-    value: string,
-  };
-  const getAttribute = (name: string): string => {
-    const attribute: Attribute = (
-      manifestJson.element.attribute.find((attribute: Attribute) => attribute.name === name)
-    );
-    return attribute.value;
-  };
-  const getNumberAttribute = (name: string): number => Number(getAttribute(name));
+  const manifestXmlNodeJson = XmlNode.toJSON(XmlNode.decode(await loadAsync(file)
+    .then(zip => zip.file('base/manifest/AndroidManifest.xml')?.async('nodebuffer'))
+    .then(manifestFile => manifestFile ?? throwMissingAndroidManifestInsideTheBundle())));
 
-  return {
-    versionCode: getNumberAttribute('versionCode'),
-    versionName: getAttribute('versionName'),
-    packageName: getAttribute('package'),
-    compiledSdkVersion: getNumberAttribute('compileSdkVersion'),
-    compiledSdkVersionCodename: getNumberAttribute('compileSdkVersionCodename'),
-  };
+  return manifestXmlNodeJson.element.attribute.reduce((object: any, attribute: Attribute) => {
+    switch (attribute.name) {
+      case 'compileSdkVersionCodename':
+        return { ...object, 'compiledSdkVersionCodename': attribute.value };
+      case 'compileSdkVersion':
+        return { ...object, 'compileSdkVersion': +attribute.value };
+      case 'versionCode':
+        return { ...object, 'versionCode': +attribute.value };
+      case 'versionName':
+        return { ...object, 'versionName': attribute.value };
+      case 'package':
+        return { ...object, 'package': attribute.value };
+      default:
+        return object;
+    }
+  }, {});
 }
 
-export async function parseAabManifestJSON(file: string | Buffer): Promise<any> {
-  const fileBuffer: Buffer = (typeof file === 'string') ? await fs.promises.readFile(file) : file;
-  const archive: JSZip = await jszip.loadAsync(fileBuffer);
-
-  const manifestFile: Buffer | undefined = (
-    await archive.file('base/manifest/AndroidManifest.xml')?.async('nodebuffer')
-  );
-
-  if (manifestFile === undefined) {
-    throw new Error('Could not find AndroidManifest.xml file inside the app bundle file');
-  }
-
-  const XmlNode: protobuf.Type = getXmlNodeProtobufType();
-  const decodedManifest = XmlNode.decode(manifestFile);
-  const decodedManifestJson = decodedManifest.toJSON();
-
-  return decodedManifestJson;
+function throwMissingAndroidManifestInsideTheBundle<T>(): T {
+  throw new Error('Could not find AndroidManifest.xml file inside the app bundle file');
 }
 
-function getXmlNodeProtobufType(): protobuf.Type {
-  const root = protobuf.loadSync(path.join(__dirname, './Resources.proto'));
-  const XmlNode = root.lookupType('aapt.pb.XmlNode');
-  return XmlNode;
-}
